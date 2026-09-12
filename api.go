@@ -21,6 +21,13 @@ var (
 	ptrAPI_InitFlat              func(uintptr) ESteamAPIInitResult
 	ptrAPI_RunCallbacks          func()
 
+	// ManualDispatch (see joingame.go)
+	ptrAPI_GetHSteamPipe                   func() HSteamPipe
+	ptrAPI_ManualDispatch_Init             func()
+	ptrAPI_ManualDispatch_RunFrame         func(HSteamPipe)
+	ptrAPI_ManualDispatch_GetNextCallback  func(HSteamPipe, uintptr) bool
+	ptrAPI_ManualDispatch_FreeLastCallback func(HSteamPipe)
+
 	// ISteamApps
 	ptrAPI_SteamApps                         func() uintptr
 	ptrAPI_ISteamApps_BGetDLCDataByIndex     func(uintptr, int32, uintptr, uintptr, uintptr, int32) bool
@@ -28,6 +35,7 @@ var (
 	ptrAPI_ISteamApps_GetAppInstallDir       func(uintptr, AppId_t, uintptr, int32) int32
 	ptrAPI_ISteamApps_GetCurrentGameLanguage func(uintptr) string
 	ptrAPI_ISteamApps_GetDLCCount            func(uintptr) int32
+	ptrAPI_ISteamApps_GetLaunchCommandLine   func(uintptr, uintptr, int32) int32
 
 	// ISteamFriends
 	ptrAPI_SteamFriends                  func() uintptr
@@ -72,6 +80,13 @@ func registerFunctions(lib uintptr) {
 	purego.RegisterLibFunc(&ptrAPI_InitFlat, lib, flatAPI_InitFlat)
 	purego.RegisterLibFunc(&ptrAPI_RunCallbacks, lib, flatAPI_RunCallbacks)
 
+	// ManualDispatch
+	purego.RegisterLibFunc(&ptrAPI_GetHSteamPipe, lib, flatAPI_GetHSteamPipe)
+	purego.RegisterLibFunc(&ptrAPI_ManualDispatch_Init, lib, flatAPI_ManualDispatch_Init)
+	purego.RegisterLibFunc(&ptrAPI_ManualDispatch_RunFrame, lib, flatAPI_ManualDispatch_RunFrame)
+	purego.RegisterLibFunc(&ptrAPI_ManualDispatch_GetNextCallback, lib, flatAPI_ManualDispatch_GetNextCallback)
+	purego.RegisterLibFunc(&ptrAPI_ManualDispatch_FreeLastCallback, lib, flatAPI_ManualDispatch_FreeLastCallback)
+
 	// ISteamApps
 	purego.RegisterLibFunc(&ptrAPI_SteamApps, lib, flatAPI_SteamApps)
 	purego.RegisterLibFunc(&ptrAPI_ISteamApps_BGetDLCDataByIndex, lib, flatAPI_ISteamApps_BGetDLCDataByIndex)
@@ -79,6 +94,7 @@ func registerFunctions(lib uintptr) {
 	purego.RegisterLibFunc(&ptrAPI_ISteamApps_GetAppInstallDir, lib, flatAPI_ISteamApps_GetAppInstallDir)
 	purego.RegisterLibFunc(&ptrAPI_ISteamApps_GetCurrentGameLanguage, lib, flatAPI_ISteamApps_GetCurrentGameLanguage)
 	purego.RegisterLibFunc(&ptrAPI_ISteamApps_GetDLCCount, lib, flatAPI_ISteamApps_GetDLCCount)
+	purego.RegisterLibFunc(&ptrAPI_ISteamApps_GetLaunchCommandLine, lib, flatAPI_ISteamApps_GetLaunchCommandLine)
 
 	// ISteamFriends
 	purego.RegisterLibFunc(&ptrAPI_SteamFriends, lib, flatAPI_SteamFriends)
@@ -177,6 +193,16 @@ func (s steamApps) GetCurrentGameLanguage() string {
 
 func (s steamApps) GetDLCCount() int32 {
 	return ptrAPI_ISteamApps_GetDLCCount(uintptr(s))
+}
+
+func (s steamApps) GetLaunchCommandLine() string {
+	var commandLine [4096]byte
+	v := ptrAPI_ISteamApps_GetLaunchCommandLine(uintptr(s), uintptr(unsafe.Pointer(&commandLine[0])), int32(len(commandLine)))
+	if v == 0 {
+		return ""
+	}
+	// Valve's own doc: the returned count includes the null terminator.
+	return string(commandLine[:v-1])
 }
 
 func SteamFriends() ISteamFriends {

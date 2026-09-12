@@ -9,6 +9,15 @@ type AppId_t uint32
 type CSteamID uint64
 type InputHandle_t uint64
 
+// HSteamPipe/HSteamUser are Valve's own flat-API pipe/user handles,
+// needed only by the ManualDispatch family below (joingame.go) — real
+// signatures confirmed against Steamworks.NET's mirrored
+// steam_api_flat.h and cross-checked with `nm` against this package's
+// own vendored libsteam_api.dylib/so, which export every
+// SteamAPI_ManualDispatch_*/SteamAPI_GetHSteamPipe symbol used there.
+type HSteamPipe int32
+type HSteamUser int32
+
 type ESteamAPIInitResult int32
 
 const (
@@ -59,6 +68,14 @@ type ISteamApps interface {
 	GetAppInstallDir(appID AppId_t) string
 	GetCurrentGameLanguage() string
 	GetDLCCount() int32
+	// GetLaunchCommandLine reads the command line Steam appended when it
+	// launched this process via a Steam URL — the real, documented
+	// delivery mechanism for a Rich Presence "connect" value when a
+	// friend's Join Game click launches a not-already-running game
+	// (Valve's own ISteamApps doc, partner.steamgames.com/doc/api/
+	// ISteamApps). Real, synchronous, flat-API call — same shape as
+	// GetAppInstallDir above, added for modwars-workspace issue #178.
+	GetLaunchCommandLine() string
 }
 
 type ISteamInput interface {
@@ -102,12 +119,26 @@ const (
 	flatAPI_InitFlat              = "SteamAPI_InitFlat"
 	flatAPI_RunCallbacks          = "SteamAPI_RunCallbacks"
 
+	// ManualDispatch: Valve's own flat, non-C++, polling-based
+	// alternative to SteamAPI_RegisterCallback's vtable-based
+	// (CCallbackBase-derived) callback objects — real, documented
+	// specifically as the delivery mechanism for bindings that cannot
+	// build a C++ vtable, which is exactly go-steamworks's own
+	// situation (see joingame.go). Confirmed present in this package's
+	// own vendored libsteam_api.dylib/so via `nm`, not assumed.
+	flatAPI_GetHSteamPipe                   = "SteamAPI_GetHSteamPipe"
+	flatAPI_ManualDispatch_Init             = "SteamAPI_ManualDispatch_Init"
+	flatAPI_ManualDispatch_RunFrame         = "SteamAPI_ManualDispatch_RunFrame"
+	flatAPI_ManualDispatch_GetNextCallback  = "SteamAPI_ManualDispatch_GetNextCallback"
+	flatAPI_ManualDispatch_FreeLastCallback = "SteamAPI_ManualDispatch_FreeLastCallback"
+
 	flatAPI_SteamApps                         = "SteamAPI_SteamApps_v008"
 	flatAPI_ISteamApps_BGetDLCDataByIndex     = "SteamAPI_ISteamApps_BGetDLCDataByIndex"
 	flatAPI_ISteamApps_BIsDlcInstalled        = "SteamAPI_ISteamApps_BIsDlcInstalled"
 	flatAPI_ISteamApps_GetAppInstallDir       = "SteamAPI_ISteamApps_GetAppInstallDir"
 	flatAPI_ISteamApps_GetCurrentGameLanguage = "SteamAPI_ISteamApps_GetCurrentGameLanguage"
 	flatAPI_ISteamApps_GetDLCCount            = "SteamAPI_ISteamApps_GetDLCCount"
+	flatAPI_ISteamApps_GetLaunchCommandLine   = "SteamAPI_ISteamApps_GetLaunchCommandLine"
 
 	flatAPI_SteamFriends                  = "SteamAPI_SteamFriends_v017"
 	flatAPI_ISteamFriends_GetPersonaName  = "SteamAPI_ISteamFriends_GetPersonaName"
