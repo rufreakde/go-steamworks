@@ -94,6 +94,12 @@ type ISteamRemoteStorage interface {
 
 type ISteamUser interface {
 	GetSteamID() CSteamID
+	// GetAuthTicketForWebApi asks Steam for a ticket the named backend
+	// service can check with the Steamworks Web API. The ticket itself
+	// arrives later, as a callback (PollCallbacks). See webapiticket.go.
+	GetAuthTicketForWebApi(identity string) HAuthTicket
+	// CancelAuthTicket gives a ticket back when it is needed no more.
+	CancelAuthTicket(ticket HAuthTicket)
 }
 
 type ISteamUserStats interface {
@@ -156,8 +162,10 @@ const (
 	flatAPI_ISteamRemoteStorage_FileDelete  = "SteamAPI_ISteamRemoteStorage_FileDelete"
 	flatAPI_ISteamRemoteStorage_GetFileSize = "SteamAPI_ISteamRemoteStorage_GetFileSize"
 
-	flatAPI_SteamUser             = "SteamAPI_SteamUser_v023"
-	flatAPI_ISteamUser_GetSteamID = "SteamAPI_ISteamUser_GetSteamID"
+	flatAPI_SteamUser                         = "SteamAPI_SteamUser_v023"
+	flatAPI_ISteamUser_GetSteamID             = "SteamAPI_ISteamUser_GetSteamID"
+	flatAPI_ISteamUser_GetAuthTicketForWebApi = "SteamAPI_ISteamUser_GetAuthTicketForWebApi"
+	flatAPI_ISteamUser_CancelAuthTicket       = "SteamAPI_ISteamUser_CancelAuthTicket"
 
 	flatAPI_SteamUserStats                   = "SteamAPI_SteamUserStats_v013"
 	flatAPI_ISteamUserStats_GetAchievement   = "SteamAPI_ISteamUserStats_GetAchievement"

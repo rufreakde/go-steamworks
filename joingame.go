@@ -105,6 +105,9 @@ func EnableManualDispatch() HSteamPipe {
 // internal/client/steamworks.go throttles that pump to avoid a
 // per-frame allocation source; the same reasoning applies here).
 //
+// A process that also asks for a Web API ticket must call PollCallbacks
+// (webapiticket.go) and never this: this one discards a ticket it finds.
+//
 // Must only be called after EnableManualDispatch.
 func PollGameRichPresenceJoinRequested(pipe HSteamPipe) (GameRichPresenceJoinRequested, bool) {
 	ptrAPI_ManualDispatch_RunFrame(pipe)
