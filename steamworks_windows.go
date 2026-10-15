@@ -3,10 +3,16 @@
 
 package steamworks
 
-import "syscall"
+import (
+	"fmt"
+	"syscall"
+)
 
 func loadLib() (uintptr, error) {
 	dllName := "steam_api64.dll"
 	handle, err := syscall.LoadLibrary(dllName)
-	return uintptr(handle), err
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", dllName, err)
+	}
+	return uintptr(handle), nil
 }

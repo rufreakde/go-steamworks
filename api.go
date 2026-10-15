@@ -139,10 +139,18 @@ func registerFunctions(lib uintptr) {
 
 var theLib *lib
 
+// loadErr is why the Steam library could not be loaded, or nil. On Windows
+// steam_api64.dll is not embedded (steamworks_windows.go), so a machine
+// without it used to panic here, before the program's main ever ran. Now
+// the package loads, Init reports the error, and the caller decides what
+// to do without Steam. No other function may be called after Init fails.
+var loadErr error
+
 func init() {
 	l, err := loadLib()
 	if err != nil {
-		panic(err)
+		loadErr = err
+		return
 	}
 	registerFunctions(l)
 	theLib = &lib{
@@ -151,10 +159,16 @@ func init() {
 }
 
 func RestartAppIfNecessary(appID uint32) bool {
+	if loadErr != nil {
+		return false
+	}
 	return ptrAPI_RestartAppIfNecessary(appID)
 }
 
 func Init() error {
+	if loadErr != nil {
+		return fmt.Errorf("steamworks: loading the Steam library failed: %w", loadErr)
+	}
 	var msg steamErrMsg
 	if ptrAPI_InitFlat(uintptr(unsafe.Pointer(&msg))) != ESteamAPIInitResult_OK {
 		return fmt.Errorf("steamworks: InitFlat failed: %s", msg.String())
