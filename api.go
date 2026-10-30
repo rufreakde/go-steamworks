@@ -43,11 +43,12 @@ var (
 	ptrAPI_ISteamFriends_SetRichPresence func(uintptr, string, string) bool
 
 	// ISteamInput
-	ptrAPI_SteamInput                          func() uintptr
-	ptrAPI_ISteamInput_GetConnectedControllers func(uintptr, uintptr) int32
-	ptrAPI_ISteamInput_GetInputTypeForHandle   func(uintptr, InputHandle_t) int32
-	ptrAPI_ISteamInput_Init                    func(uintptr, bool) bool
-	ptrAPI_ISteamInput_RunFrame                func(uintptr, bool)
+	ptrAPI_SteamInput                               func() uintptr
+	ptrAPI_ISteamInput_GetConnectedControllers      func(uintptr, uintptr) int32
+	ptrAPI_ISteamInput_GetControllerForGamepadIndex func(uintptr, int32) InputHandle_t
+	ptrAPI_ISteamInput_GetInputTypeForHandle        func(uintptr, InputHandle_t) int32
+	ptrAPI_ISteamInput_Init                         func(uintptr, bool) bool
+	ptrAPI_ISteamInput_RunFrame                     func(uintptr, bool)
 
 	// ISteamRemoteStorage
 	ptrAPI_SteamRemoteStorage              func() uintptr
@@ -106,6 +107,7 @@ func registerFunctions(lib uintptr) {
 	// ISteamInput
 	purego.RegisterLibFunc(&ptrAPI_SteamInput, lib, flatAPI_SteamInput)
 	purego.RegisterLibFunc(&ptrAPI_ISteamInput_GetConnectedControllers, lib, flatAPI_ISteamInput_GetConnectedControllers)
+	purego.RegisterLibFunc(&ptrAPI_ISteamInput_GetControllerForGamepadIndex, lib, flatAPI_ISteamInput_GetControllerForGamepadIndex)
 	purego.RegisterLibFunc(&ptrAPI_ISteamInput_GetInputTypeForHandle, lib, flatAPI_ISteamInput_GetInputTypeForHandle)
 	purego.RegisterLibFunc(&ptrAPI_ISteamInput_Init, lib, flatAPI_ISteamInput_Init)
 	purego.RegisterLibFunc(&ptrAPI_ISteamInput_RunFrame, lib, flatAPI_ISteamInput_RunFrame)
@@ -247,6 +249,15 @@ func (s steamInput) GetConnectedControllers() []InputHandle_t {
 	var handles [_STEAM_INPUT_MAX_COUNT]InputHandle_t
 	v := ptrAPI_ISteamInput_GetConnectedControllers(uintptr(s), uintptr(unsafe.Pointer(&handles[0])))
 	return handles[:int(v)]
+}
+
+// GetControllerForGamepadIndex is the Steam Input handle behind the emulated
+// gamepad in slot index (the XInput slot on Windows), or 0 when no Steam
+// Input pad stands behind that slot. With GetInputTypeForHandle it names the
+// real pad behind a virtual Xbox pad (Valve, Steam Input Gamepad Emulation -
+// Best Practices).
+func (s steamInput) GetControllerForGamepadIndex(index int) InputHandle_t {
+	return ptrAPI_ISteamInput_GetControllerForGamepadIndex(uintptr(s), int32(index))
 }
 
 func (s steamInput) GetInputTypeForHandle(inputHandle InputHandle_t) ESteamInputType {

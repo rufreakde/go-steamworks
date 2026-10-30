@@ -80,6 +80,9 @@ type ISteamApps interface {
 
 type ISteamInput interface {
 	GetConnectedControllers() []InputHandle_t
+	// GetControllerForGamepadIndex is the handle behind an emulated gamepad
+	// slot, 0 for none (api.go). Added for modwars-workspace issue #676.
+	GetControllerForGamepadIndex(index int) InputHandle_t
 	GetInputTypeForHandle(inputHandle InputHandle_t) ESteamInputType
 	Init(bExplicitlyCallRunFrame bool) bool
 	RunFrame()
@@ -150,11 +153,12 @@ const (
 	flatAPI_ISteamFriends_GetPersonaName  = "SteamAPI_ISteamFriends_GetPersonaName"
 	flatAPI_ISteamFriends_SetRichPresence = "SteamAPI_ISteamFriends_SetRichPresence"
 
-	flatAPI_SteamInput                          = "SteamAPI_SteamInput_v006"
-	flatAPI_ISteamInput_GetConnectedControllers = "SteamAPI_ISteamInput_GetConnectedControllers"
-	flatAPI_ISteamInput_GetInputTypeForHandle   = "SteamAPI_ISteamInput_GetInputTypeForHandle"
-	flatAPI_ISteamInput_Init                    = "SteamAPI_ISteamInput_Init"
-	flatAPI_ISteamInput_RunFrame                = "SteamAPI_ISteamInput_RunFrame"
+	flatAPI_SteamInput                               = "SteamAPI_SteamInput_v006"
+	flatAPI_ISteamInput_GetConnectedControllers      = "SteamAPI_ISteamInput_GetConnectedControllers"
+	flatAPI_ISteamInput_GetControllerForGamepadIndex = "SteamAPI_ISteamInput_GetControllerForGamepadIndex"
+	flatAPI_ISteamInput_GetInputTypeForHandle        = "SteamAPI_ISteamInput_GetInputTypeForHandle"
+	flatAPI_ISteamInput_Init                         = "SteamAPI_ISteamInput_Init"
+	flatAPI_ISteamInput_RunFrame                     = "SteamAPI_ISteamInput_RunFrame"
 
 	flatAPI_SteamRemoteStorage              = "SteamAPI_SteamRemoteStorage_v016"
 	flatAPI_ISteamRemoteStorage_FileWrite   = "SteamAPI_ISteamRemoteStorage_FileWrite"
