@@ -163,6 +163,9 @@ type ISteamUserStats interface {
 
 type ISteamUtils interface {
 	IsOverlayEnabled() bool
+	// GetAppID is the App ID the game runs under. Added for
+	// modwars-workspace issue #798 (a Workshop item is made for it).
+	GetAppID() AppId_t
 	IsRunningOnSteamHardware() ESteamHardwareType
 	GetSteamHardwareDefaultConfig() ESteamHardwareDefaultConfig
 	IsRunningUnderProton() bool
@@ -202,6 +205,11 @@ type ISteamFriends interface {
 	// gives (Rich Presence "connect"). It does nothing when the overlay is
 	// not there. Added for modwars-workspace issue #794.
 	ActivateGameOverlayInviteDialogConnectString(connect string)
+	// ActivateGameOverlayToWebPage opens url in the Steam overlay's web
+	// browser; a steam:// address opens Steam's own page, for example a
+	// Workshop item's (steam://url/CommunityFilePage/<item>). Added for
+	// modwars-workspace issue #798.
+	ActivateGameOverlayToWebPage(url string, mode EActivateGameOverlayToWebPageMode)
 }
 
 const (
@@ -227,6 +235,7 @@ const (
 	flatAPI_ISteamFriends_GetPersonaName                               = "SteamAPI_ISteamFriends_GetPersonaName"
 	flatAPI_ISteamFriends_SetRichPresence                              = "SteamAPI_ISteamFriends_SetRichPresence"
 	flatAPI_ISteamFriends_ActivateGameOverlayInviteDialogConnectString = "SteamAPI_ISteamFriends_ActivateGameOverlayInviteDialogConnectString"
+	flatAPI_ISteamFriends_ActivateGameOverlayToWebPage                 = "SteamAPI_ISteamFriends_ActivateGameOverlayToWebPage"
 
 	flatAPI_SteamInput                               = "SteamAPI_SteamInput_v007"
 	flatAPI_ISteamInput_GetConnectedControllers      = "SteamAPI_ISteamInput_GetConnectedControllers"
@@ -254,6 +263,7 @@ const (
 
 	flatAPI_SteamUtils                                = "SteamAPI_SteamUtils_v011"
 	flatAPI_ISteamUtils_IsOverlayEnabled              = "SteamAPI_ISteamUtils_IsOverlayEnabled"
+	flatAPI_ISteamUtils_GetAppID                      = "SteamAPI_ISteamUtils_GetAppID"
 	flatAPI_ISteamUtils_IsRunningOnSteamHardware      = "SteamAPI_ISteamUtils_IsRunningOnSteamHardware"
 	flatAPI_ISteamUtils_GetSteamHardwareDefaultConfig = "SteamAPI_ISteamUtils_GetSteamHardwareDefaultConfig"
 	flatAPI_ISteamUtils_IsRunningUnderProton          = "SteamAPI_ISteamUtils_IsRunningUnderProton"

@@ -40,6 +40,7 @@ var (
 	ptrAPI_ISteamFriends_GetPersonaName                               func(uintptr) string
 	ptrAPI_ISteamFriends_SetRichPresence                              func(uintptr, string, string) bool
 	ptrAPI_ISteamFriends_ActivateGameOverlayInviteDialogConnectString func(uintptr, string)
+	ptrAPI_ISteamFriends_ActivateGameOverlayToWebPage                 func(uintptr, string, EActivateGameOverlayToWebPageMode)
 
 	// ISteamInput
 	ptrAPI_SteamInput                               func() uintptr
@@ -72,6 +73,7 @@ var (
 	// ISteamUtils
 	ptrAPI_SteamUtils                                func() uintptr
 	ptrAPI_ISteamUtils_IsOverlayEnabled              func(uintptr) bool
+	ptrAPI_ISteamUtils_GetAppID                      func(uintptr) AppId_t
 	ptrAPI_ISteamUtils_IsRunningOnSteamHardware      func(uintptr) ESteamHardwareType
 	ptrAPI_ISteamUtils_GetSteamHardwareDefaultConfig func(uintptr) ESteamHardwareDefaultConfig
 	ptrAPI_ISteamUtils_IsRunningUnderProton          func(uintptr) bool
@@ -106,6 +108,7 @@ func registerFunctions(lib uintptr) {
 	purego.RegisterLibFunc(&ptrAPI_ISteamFriends_GetPersonaName, lib, flatAPI_ISteamFriends_GetPersonaName)
 	purego.RegisterLibFunc(&ptrAPI_ISteamFriends_SetRichPresence, lib, flatAPI_ISteamFriends_SetRichPresence)
 	purego.RegisterLibFunc(&ptrAPI_ISteamFriends_ActivateGameOverlayInviteDialogConnectString, lib, flatAPI_ISteamFriends_ActivateGameOverlayInviteDialogConnectString)
+	purego.RegisterLibFunc(&ptrAPI_ISteamFriends_ActivateGameOverlayToWebPage, lib, flatAPI_ISteamFriends_ActivateGameOverlayToWebPage)
 
 	// ISteamInput
 	purego.RegisterLibFunc(&ptrAPI_SteamInput, lib, flatAPI_SteamInput)
@@ -138,6 +141,7 @@ func registerFunctions(lib uintptr) {
 	// ISteamUtils
 	purego.RegisterLibFunc(&ptrAPI_SteamUtils, lib, flatAPI_SteamUtils)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUtils_IsOverlayEnabled, lib, flatAPI_ISteamUtils_IsOverlayEnabled)
+	purego.RegisterLibFunc(&ptrAPI_ISteamUtils_GetAppID, lib, flatAPI_ISteamUtils_GetAppID)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUtils_IsRunningOnSteamHardware, lib, flatAPI_ISteamUtils_IsRunningOnSteamHardware)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUtils_GetSteamHardwareDefaultConfig, lib, flatAPI_ISteamUtils_GetSteamHardwareDefaultConfig)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUtils_IsRunningUnderProton, lib, flatAPI_ISteamUtils_IsRunningUnderProton)
@@ -305,6 +309,10 @@ func (s steamFriends) ActivateGameOverlayInviteDialogConnectString(connect strin
 	ptrAPI_ISteamFriends_ActivateGameOverlayInviteDialogConnectString(uintptr(s), connect)
 }
 
+func (s steamFriends) ActivateGameOverlayToWebPage(url string, mode EActivateGameOverlayToWebPageMode) {
+	ptrAPI_ISteamFriends_ActivateGameOverlayToWebPage(uintptr(s), url, mode)
+}
+
 func SteamInput() ISteamInput {
 	return steamInput(ptrAPI_SteamInput())
 }
@@ -410,6 +418,10 @@ type steamUtils uintptr
 
 func (s steamUtils) IsOverlayEnabled() bool {
 	return ptrAPI_ISteamUtils_IsOverlayEnabled(uintptr(s))
+}
+
+func (s steamUtils) GetAppID() AppId_t {
+	return ptrAPI_ISteamUtils_GetAppID(uintptr(s))
 }
 
 func (s steamUtils) IsRunningOnSteamHardware() ESteamHardwareType {

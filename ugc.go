@@ -25,6 +25,15 @@ const (
 	SteamAPICallInvalid    SteamAPICall_t    = 0
 )
 
+// EActivateGameOverlayToWebPageMode: how ActivateGameOverlayToWebPage
+// shows its page.
+type EActivateGameOverlayToWebPageMode int32
+
+const (
+	EActivateGameOverlayToWebPageModeDefault EActivateGameOverlayToWebPageMode = 0
+	EActivateGameOverlayToWebPageModeModal   EActivateGameOverlayToWebPageMode = 1
+)
+
 type EWorkshopFileType int32
 
 // EWorkshopFileTypeCommunity is a normal Workshop item, the one a Mod is.

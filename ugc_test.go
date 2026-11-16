@@ -234,3 +234,19 @@ func TestSteamUGC_TheWorkshopAgreement(t *testing.T) {
 		t.Error("the Workshop agreement")
 	}
 }
+
+func TestTheAppIDAndTheOverlayWebPage(t *testing.T) {
+	swap(t, &ptrAPI_ISteamUtils_GetAppID, func(self uintptr) AppId_t { return 5534970 })
+	var opened string
+	var mode EActivateGameOverlayToWebPageMode
+	swap(t, &ptrAPI_ISteamFriends_ActivateGameOverlayToWebPage, func(self uintptr, url string, m EActivateGameOverlayToWebPageMode) {
+		opened, mode = url, m
+	})
+	if got := steamUtils(1).GetAppID(); got != 5534970 {
+		t.Errorf("GetAppID = %d", got)
+	}
+	steamFriends(1).ActivateGameOverlayToWebPage("steam://url/CommunityFilePage/77", EActivateGameOverlayToWebPageModeModal)
+	if opened != "steam://url/CommunityFilePage/77" || mode != EActivateGameOverlayToWebPageModeModal {
+		t.Errorf("opened %q in mode %d", opened, mode)
+	}
+}
