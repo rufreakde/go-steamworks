@@ -13,7 +13,7 @@ import (
 // proves init no longer panics) and Init must report the missing library
 // as an ordinary error the caller can fall back from.
 func TestInit_MissingSteamAPIDLLIsAnErrorNotAPanic(t *testing.T) {
-	if loadErr == nil {
+	if loadOnce() == nil {
 		t.Skip("steam_api64.dll is present on this machine; nothing to check")
 	}
 	err := Init()
@@ -26,7 +26,7 @@ func TestInit_MissingSteamAPIDLLIsAnErrorNotAPanic(t *testing.T) {
 }
 
 func TestRestartAppIfNecessary_MissingSteamAPIDLLMeansNoRestart(t *testing.T) {
-	if loadErr == nil {
+	if loadOnce() == nil {
 		t.Skip("steam_api64.dll is present on this machine; nothing to check")
 	}
 	if RestartAppIfNecessary(480) {

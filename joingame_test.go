@@ -8,21 +8,26 @@ import (
 	"unsafe"
 )
 
-// TestDecodeGameRichPresenceJoinRequested exercises the pure decode
-// logic against a hand-built buffer laid out exactly like Valve's own
-// GameRichPresenceJoinRequested_t (CSteamID followed by a fixed-size
-// char array) — no live Steam client or native call involved, so this
-// runs in any environment.
+// joinRequestPayload builds a buffer laid out exactly like Valve's own
+// GameRichPresenceJoinRequested_t: a CSteamID, then a fixed char array. No
+// live Steam client or native call is involved, so these tests run anywhere.
+func joinRequestPayload(friend CSteamID, connect string) []byte {
+	buf := make([]byte, unsafe.Sizeof(CSteamID(0))+maxRichPresenceValueLength)
+	*(*CSteamID)(unsafe.Pointer(&buf[0])) = friend
+	copy(buf[unsafe.Sizeof(CSteamID(0)):], connect)
+	return buf
+}
+
 func TestDecodeGameRichPresenceJoinRequested(t *testing.T) {
 	const wantConnect = "203.0.113.5:27015/lobby-42"
 	const wantSteamID = CSteamID(76561197960287930)
+	buf := joinRequestPayload(wantSteamID, wantConnect)
 
-	buf := make([]byte, unsafe.Sizeof(CSteamID(0))+maxRichPresenceValueLength)
-	*(*CSteamID)(unsafe.Pointer(&buf[0])) = wantSteamID
-	copy(buf[unsafe.Sizeof(CSteamID(0)):], wantConnect)
+	got, ok := decodeGameRichPresenceJoinRequested(unsafe.Pointer(&buf[0]), len(buf))
 
-	got := decodeGameRichPresenceJoinRequested(uintptr(unsafe.Pointer(&buf[0])))
-
+	if !ok {
+		t.Fatal("ok = false for a full payload")
+	}
 	if got.SteamIDFriend != wantSteamID {
 		t.Errorf("SteamIDFriend = %v, want %v", got.SteamIDFriend, wantSteamID)
 	}
@@ -31,33 +36,58 @@ func TestDecodeGameRichPresenceJoinRequested(t *testing.T) {
 	}
 }
 
-// TestDecodeGameRichPresenceJoinRequestedEmptyConnect confirms an
-// all-zero connect field (the case where an app-launch-only join, no
-// connect string set) decodes to an empty string rather than a
-// null-byte-laden garbage string.
+// An all-zero connect field (a join with no connect string) decodes to an
+// empty string, not to a string of null bytes.
 func TestDecodeGameRichPresenceJoinRequestedEmptyConnect(t *testing.T) {
-	buf := make([]byte, unsafe.Sizeof(CSteamID(0))+maxRichPresenceValueLength)
+	buf := joinRequestPayload(0, "")
 
-	got := decodeGameRichPresenceJoinRequested(uintptr(unsafe.Pointer(&buf[0])))
+	got, ok := decodeGameRichPresenceJoinRequested(unsafe.Pointer(&buf[0]), len(buf))
 
-	if got.Connect != "" {
-		t.Errorf("Connect = %q, want empty string", got.Connect)
-	}
-	if got.SteamIDFriend != CSteamID(0) {
-		t.Errorf("SteamIDFriend = %v, want 0", got.SteamIDFriend)
+	if !ok || got.Connect != "" || got.SteamIDFriend != 0 {
+		t.Errorf("got %+v, ok %v; want an empty request, ok", got, ok)
 	}
 }
 
-// TestCallbackMsgLayoutMatchesNativeSize pins callbackMsg's own size to
-// Valve's real, documented CallbackMsg_t layout (two 4-byte fields, a
-// pointer, a trailing 4-byte field, padded to the struct's own 8-byte
-// alignment) on any 64-bit target — 24 bytes. A future accidental field
-// reorder/addition that changed this size would silently corrupt every
-// read this file does directly against Steam's native memory, so this
-// test exists to catch that class of regression immediately instead of
-// via a hard-to-diagnose live crash.
+// The decoder never reads past the payload Steam gave, and never past the
+// connect field.
+func TestDecodeGameRichPresenceJoinRequestedStaysInsideThePayload(t *testing.T) {
+	const friend = CSteamID(42)
+	idSize := int(unsafe.Sizeof(CSteamID(0)))
+	buf := joinRequestPayload(friend, "abcdef")
+
+	short, ok := decodeGameRichPresenceJoinRequested(unsafe.Pointer(&buf[0]), idSize+3)
+	if !ok || short.Connect != "abc" || short.SteamIDFriend != friend {
+		t.Errorf("payload of id+3 bytes: got %+v, ok %v; want connect \"abc\"", short, ok)
+	}
+
+	long := append(buf, []byte("PAST THE FIELD")...)
+	for i := idSize; i < idSize+maxRichPresenceValueLength; i++ {
+		long[i] = 'x' // no terminator inside the field
+	}
+	got, ok := decodeGameRichPresenceJoinRequested(unsafe.Pointer(&long[0]), len(long))
+	if !ok || len(got.Connect) != maxRichPresenceValueLength {
+		t.Errorf("payload longer than the struct: connect has %d bytes, want %d", len(got.Connect), maxRichPresenceValueLength)
+	}
+
+	if _, ok := decodeGameRichPresenceJoinRequested(unsafe.Pointer(&buf[0]), idSize-1); ok {
+		t.Error("ok = true for a payload smaller than the friend's id")
+	}
+	if _, ok := decodeGameRichPresenceJoinRequested(nil, 300); ok {
+		t.Error("ok = true for a nil payload")
+	}
+}
+
+// CallbackMsg is read straight out of Steam's memory. Valve's CallbackMsg_t
+// is two 4-byte fields, a pointer and a 4-byte field: 24 bytes on a 64-bit
+// target. A changed field would corrupt every read, so pin the size.
 func TestCallbackMsgLayoutMatchesNativeSize(t *testing.T) {
-	if got, want := unsafe.Sizeof(callbackMsg{}), uintptr(24); got != want {
-		t.Errorf("unsafe.Sizeof(callbackMsg{}) = %d, want %d (Valve's real CallbackMsg_t size on a 64-bit target)", got, want)
+	if got, want := unsafe.Sizeof(CallbackMsg{}), uintptr(24); got != want {
+		t.Errorf("unsafe.Sizeof(CallbackMsg{}) = %d, want %d", got, want)
+	}
+	if got, want := unsafe.Offsetof(CallbackMsg{}.Param), uintptr(8); got != want {
+		t.Errorf("offset of Param = %d, want %d", got, want)
+	}
+	if got, want := unsafe.Offsetof(CallbackMsg{}.ParamSize), uintptr(16); got != want {
+		t.Errorf("offset of ParamSize = %d, want %d", got, want)
 	}
 }

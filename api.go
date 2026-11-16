@@ -6,7 +6,7 @@ package steamworks
 import (
 	"bytes"
 	"fmt"
-	"unsafe"
+	"sync"
 
 	"github.com/ebitengine/purego"
 )
@@ -17,25 +17,23 @@ type lib struct {
 
 var (
 	// General
-	ptrAPI_RestartAppIfNecessary func(uint32) bool
-	ptrAPI_InitFlat              func(uintptr) ESteamAPIInitResult
-	ptrAPI_RunCallbacks          func()
-
-	// ManualDispatch (see joingame.go)
+	ptrAPI_RestartAppIfNecessary           func(uint32) bool
+	ptrAPI_InitFlat                        func(*steamErrMsg) ESteamAPIInitResult
+	ptrAPI_RunCallbacks                    func()
 	ptrAPI_GetHSteamPipe                   func() HSteamPipe
 	ptrAPI_ManualDispatch_Init             func()
 	ptrAPI_ManualDispatch_RunFrame         func(HSteamPipe)
-	ptrAPI_ManualDispatch_GetNextCallback  func(HSteamPipe, uintptr) bool
+	ptrAPI_ManualDispatch_GetNextCallback  func(HSteamPipe, *CallbackMsg) bool
 	ptrAPI_ManualDispatch_FreeLastCallback func(HSteamPipe)
 
 	// ISteamApps
 	ptrAPI_SteamApps                         func() uintptr
-	ptrAPI_ISteamApps_BGetDLCDataByIndex     func(uintptr, int32, uintptr, uintptr, uintptr, int32) bool
+	ptrAPI_ISteamApps_BGetDLCDataByIndex     func(uintptr, int32, *AppId_t, *bool, *byte, int32) bool
 	ptrAPI_ISteamApps_BIsDlcInstalled        func(uintptr, AppId_t) bool
-	ptrAPI_ISteamApps_GetAppInstallDir       func(uintptr, AppId_t, uintptr, int32) int32
+	ptrAPI_ISteamApps_GetAppInstallDir       func(uintptr, AppId_t, *byte, int32) int32
 	ptrAPI_ISteamApps_GetCurrentGameLanguage func(uintptr) string
 	ptrAPI_ISteamApps_GetDLCCount            func(uintptr) int32
-	ptrAPI_ISteamApps_GetLaunchCommandLine   func(uintptr, uintptr, int32) int32
+	ptrAPI_ISteamApps_GetLaunchCommandLine   func(uintptr, *byte, int32) int32
 
 	// ISteamFriends
 	ptrAPI_SteamFriends                  func() uintptr
@@ -44,7 +42,7 @@ var (
 
 	// ISteamInput
 	ptrAPI_SteamInput                               func() uintptr
-	ptrAPI_ISteamInput_GetConnectedControllers      func(uintptr, uintptr) int32
+	ptrAPI_ISteamInput_GetConnectedControllers      func(uintptr, *InputHandle_t) int32
 	ptrAPI_ISteamInput_GetControllerForGamepadIndex func(uintptr, int32) InputHandle_t
 	ptrAPI_ISteamInput_GetInputTypeForHandle        func(uintptr, InputHandle_t) int32
 	ptrAPI_ISteamInput_Init                         func(uintptr, bool) bool
@@ -52,8 +50,8 @@ var (
 
 	// ISteamRemoteStorage
 	ptrAPI_SteamRemoteStorage              func() uintptr
-	ptrAPI_ISteamRemoteStorage_FileWrite   func(uintptr, string, uintptr, int32) bool
-	ptrAPI_ISteamRemoteStorage_FileRead    func(uintptr, string, uintptr, int32) int32
+	ptrAPI_ISteamRemoteStorage_FileWrite   func(uintptr, string, *byte, int32) bool
+	ptrAPI_ISteamRemoteStorage_FileRead    func(uintptr, string, *byte, int32) int32
 	ptrAPI_ISteamRemoteStorage_FileDelete  func(uintptr, string) bool
 	ptrAPI_ISteamRemoteStorage_GetFileSize func(uintptr, string) int32
 
@@ -65,16 +63,18 @@ var (
 
 	// ISteamUserStats
 	ptrAPI_SteamUserStats                   func() uintptr
-	ptrAPI_ISteamUserStats_GetAchievement   func(uintptr, string, uintptr) bool
+	ptrAPI_ISteamUserStats_GetAchievement   func(uintptr, string, *bool) bool
 	ptrAPI_ISteamUserStats_SetAchievement   func(uintptr, string) bool
 	ptrAPI_ISteamUserStats_ClearAchievement func(uintptr, string) bool
 	ptrAPI_ISteamUserStats_StoreStats       func(uintptr) bool
 
 	// ISteamUtils
-	ptrAPI_SteamUtils                               func() uintptr
-	ptrAPI_ISteamUtils_IsOverlayEnabled             func(uintptr) bool
-	ptrAPI_ISteamUtils_IsSteamRunningOnSteamDeck    func(uintptr) bool
-	ptrAPI_ISteamUtils_ShowFloatingGamepadTextInput func(uintptr, EFloatingGamepadTextInputMode, int32, int32, int32, int32) bool
+	ptrAPI_SteamUtils                                func() uintptr
+	ptrAPI_ISteamUtils_IsOverlayEnabled              func(uintptr) bool
+	ptrAPI_ISteamUtils_IsRunningOnSteamHardware      func(uintptr) ESteamHardwareType
+	ptrAPI_ISteamUtils_GetSteamHardwareDefaultConfig func(uintptr) ESteamHardwareDefaultConfig
+	ptrAPI_ISteamUtils_IsRunningUnderProton          func(uintptr) bool
+	ptrAPI_ISteamUtils_ShowFloatingGamepadTextInput  func(uintptr, EFloatingGamepadTextInputMode, int32, int32, int32, int32) bool
 )
 
 func registerFunctions(lib uintptr) {
@@ -82,8 +82,6 @@ func registerFunctions(lib uintptr) {
 	purego.RegisterLibFunc(&ptrAPI_RestartAppIfNecessary, lib, flatAPI_RestartAppIfNecessary)
 	purego.RegisterLibFunc(&ptrAPI_InitFlat, lib, flatAPI_InitFlat)
 	purego.RegisterLibFunc(&ptrAPI_RunCallbacks, lib, flatAPI_RunCallbacks)
-
-	// ManualDispatch
 	purego.RegisterLibFunc(&ptrAPI_GetHSteamPipe, lib, flatAPI_GetHSteamPipe)
 	purego.RegisterLibFunc(&ptrAPI_ManualDispatch_Init, lib, flatAPI_ManualDispatch_Init)
 	purego.RegisterLibFunc(&ptrAPI_ManualDispatch_RunFrame, lib, flatAPI_ManualDispatch_RunFrame)
@@ -135,51 +133,110 @@ func registerFunctions(lib uintptr) {
 	// ISteamUtils
 	purego.RegisterLibFunc(&ptrAPI_SteamUtils, lib, flatAPI_SteamUtils)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUtils_IsOverlayEnabled, lib, flatAPI_ISteamUtils_IsOverlayEnabled)
-	purego.RegisterLibFunc(&ptrAPI_ISteamUtils_IsSteamRunningOnSteamDeck, lib, flatAPI_ISteamUtils_IsSteamRunningOnSteamDeck)
+	purego.RegisterLibFunc(&ptrAPI_ISteamUtils_IsRunningOnSteamHardware, lib, flatAPI_ISteamUtils_IsRunningOnSteamHardware)
+	purego.RegisterLibFunc(&ptrAPI_ISteamUtils_GetSteamHardwareDefaultConfig, lib, flatAPI_ISteamUtils_GetSteamHardwareDefaultConfig)
+	purego.RegisterLibFunc(&ptrAPI_ISteamUtils_IsRunningUnderProton, lib, flatAPI_ISteamUtils_IsRunningUnderProton)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUtils_ShowFloatingGamepadTextInput, lib, flatAPI_ISteamUtils_ShowFloatingGamepadTextInput)
 }
 
-var theLib *lib
+var (
+	theLib *lib
+	// loadOnce lazily loads the Steam SDK library and registers its
+	// functions on first use, instead of doing so in a package init().
+	// Load errors are cached, so a failed load is only attempted once.
+	loadOnce = sync.OnceValue(func() error {
+		l, err := loadLib()
+		if err != nil {
+			return err
+		}
+		if err := registerSafely(func() { registerFunctions(l) }); err != nil {
+			return err
+		}
+		theLib = &lib{
+			lib: l,
+		}
+		return nil
+	})
+)
 
-// loadErr is why the Steam library could not be loaded, or nil. On Windows
-// steam_api64.dll is not embedded (steamworks_windows.go), so a machine
-// without it used to panic here, before the program's main ever ran. Now
-// the package loads, Init reports the error, and the caller decides what
-// to do without Steam. No other function may be called after Init fails.
-var loadErr error
-
-func init() {
-	l, err := loadLib()
-	if err != nil {
-		loadErr = err
-		return
-	}
-	registerFunctions(l)
-	theLib = &lib{
-		lib: l,
-	}
+// registerSafely runs register and turns its panic into an error. purego
+// panics when the loaded library lacks a name, which a Steam library of
+// another SDK version does. That must be an error Init reports, so the
+// caller can go on without Steam, and never a crash (modwars-workspace
+// issue #709).
+func registerSafely(register func()) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("steamworks: the Steam library lacks a function this binding needs: %v", r)
+		}
+	}()
+	register()
+	return nil
 }
 
 func RestartAppIfNecessary(appID uint32) bool {
-	if loadErr != nil {
+	if loadOnce() != nil {
 		return false
 	}
 	return ptrAPI_RestartAppIfNecessary(appID)
 }
 
 func Init() error {
-	if loadErr != nil {
-		return fmt.Errorf("steamworks: loading the Steam library failed: %w", loadErr)
+	if err := loadOnce(); err != nil {
+		return fmt.Errorf("steamworks: loading the Steam library failed: %w", err)
 	}
 	var msg steamErrMsg
-	if ptrAPI_InitFlat(uintptr(unsafe.Pointer(&msg))) != ESteamAPIInitResult_OK {
+	if ptrAPI_InitFlat(&msg) != ESteamAPIInitResult_OK {
 		return fmt.Errorf("steamworks: InitFlat failed: %s", msg.String())
 	}
 	return nil
 }
 
 func RunCallbacks() {
+	if loadOnce() != nil {
+		return
+	}
 	ptrAPI_RunCallbacks()
+}
+
+func GetHSteamPipe() HSteamPipe {
+	if loadOnce() != nil {
+		return 0
+	}
+	return ptrAPI_GetHSteamPipe()
+}
+
+// ManualDispatch_Init informs the API that the application uses manual event
+// dispatch. It must be called after Init and before the other ManualDispatch
+// functions. Manual dispatch replaces RunCallbacks and must not be mixed with
+// the normal callback dispatch (RunCallbacks, or the C++ CCallback/CCallResult
+// mechanisms).
+func ManualDispatch_Init() {
+	if loadOnce() != nil {
+		return
+	}
+	ptrAPI_ManualDispatch_Init()
+}
+
+func ManualDispatch_RunFrame(pipe HSteamPipe) {
+	if loadOnce() != nil {
+		return
+	}
+	ptrAPI_ManualDispatch_RunFrame(pipe)
+}
+
+func ManualDispatch_GetNextCallback(pipe HSteamPipe, msg *CallbackMsg) bool {
+	if loadOnce() != nil {
+		return false
+	}
+	return ptrAPI_ManualDispatch_GetNextCallback(pipe, msg)
+}
+
+func ManualDispatch_FreeLastCallback(pipe HSteamPipe) {
+	if loadOnce() != nil {
+		return
+	}
+	ptrAPI_ManualDispatch_FreeLastCallback(pipe)
 }
 
 func SteamApps() ISteamApps {
@@ -190,7 +247,7 @@ type steamApps uintptr
 
 func (s steamApps) BGetDLCDataByIndex(iDLC int) (appID AppId_t, available bool, pchName string, success bool) {
 	var name [4096]byte
-	v := ptrAPI_ISteamApps_BGetDLCDataByIndex(uintptr(s), int32(iDLC), uintptr(unsafe.Pointer(&appID)), uintptr(unsafe.Pointer(&available)), uintptr(unsafe.Pointer(&name[0])), int32(len(name)))
+	v := ptrAPI_ISteamApps_BGetDLCDataByIndex(uintptr(s), int32(iDLC), &appID, &available, &name[0], int32(len(name)))
 	return appID, available, cStringToGo(name[:]), v
 }
 
@@ -200,7 +257,7 @@ func (s steamApps) BIsDlcInstalled(appID AppId_t) bool {
 
 func (s steamApps) GetAppInstallDir(appID AppId_t) string {
 	var path [4096]byte
-	v := ptrAPI_ISteamApps_GetAppInstallDir(uintptr(s), appID, uintptr(unsafe.Pointer(&path[0])), int32(len(path)))
+	v := ptrAPI_ISteamApps_GetAppInstallDir(uintptr(s), appID, &path[0], int32(len(path)))
 	if v == 0 {
 		return ""
 	}
@@ -217,7 +274,7 @@ func (s steamApps) GetDLCCount() int32 {
 
 func (s steamApps) GetLaunchCommandLine() string {
 	var commandLine [4096]byte
-	v := ptrAPI_ISteamApps_GetLaunchCommandLine(uintptr(s), uintptr(unsafe.Pointer(&commandLine[0])), int32(len(commandLine)))
+	v := ptrAPI_ISteamApps_GetLaunchCommandLine(uintptr(s), &commandLine[0], int32(len(commandLine)))
 	if v == 0 {
 		return ""
 	}
@@ -247,7 +304,7 @@ type steamInput uintptr
 
 func (s steamInput) GetConnectedControllers() []InputHandle_t {
 	var handles [_STEAM_INPUT_MAX_COUNT]InputHandle_t
-	v := ptrAPI_ISteamInput_GetConnectedControllers(uintptr(s), uintptr(unsafe.Pointer(&handles[0])))
+	v := ptrAPI_ISteamInput_GetConnectedControllers(uintptr(s), &handles[0])
 	return handles[:int(v)]
 }
 
@@ -280,11 +337,11 @@ func SteamRemoteStorage() ISteamRemoteStorage {
 type steamRemoteStorage uintptr
 
 func (s steamRemoteStorage) FileWrite(file string, data []byte) bool {
-	return ptrAPI_ISteamRemoteStorage_FileWrite(uintptr(s), file, uintptr(unsafe.Pointer(&data[0])), int32(len(data)))
+	return ptrAPI_ISteamRemoteStorage_FileWrite(uintptr(s), file, &data[0], int32(len(data)))
 }
 
 func (s steamRemoteStorage) FileRead(file string, data []byte) int32 {
-	return ptrAPI_ISteamRemoteStorage_FileRead(uintptr(s), file, uintptr(unsafe.Pointer(&data[0])), int32(len(data)))
+	return ptrAPI_ISteamRemoteStorage_FileRead(uintptr(s), file, &data[0], int32(len(data)))
 }
 
 func (s steamRemoteStorage) FileDelete(file string) bool {
@@ -320,7 +377,7 @@ func SteamUserStats() ISteamUserStats {
 type steamUserStats uintptr
 
 func (s steamUserStats) GetAchievement(name string) (achieved, success bool) {
-	success = ptrAPI_ISteamUserStats_GetAchievement(uintptr(s), name, uintptr(unsafe.Pointer(&achieved)))
+	success = ptrAPI_ISteamUserStats_GetAchievement(uintptr(s), name, &achieved)
 	return
 }
 
@@ -346,8 +403,20 @@ func (s steamUtils) IsOverlayEnabled() bool {
 	return ptrAPI_ISteamUtils_IsOverlayEnabled(uintptr(s))
 }
 
+func (s steamUtils) IsRunningOnSteamHardware() ESteamHardwareType {
+	return ptrAPI_ISteamUtils_IsRunningOnSteamHardware(uintptr(s))
+}
+
+func (s steamUtils) GetSteamHardwareDefaultConfig() ESteamHardwareDefaultConfig {
+	return ptrAPI_ISteamUtils_GetSteamHardwareDefaultConfig(uintptr(s))
+}
+
+func (s steamUtils) IsRunningUnderProton() bool {
+	return ptrAPI_ISteamUtils_IsRunningUnderProton(uintptr(s))
+}
+
 func (s steamUtils) IsSteamRunningOnSteamDeck() bool {
-	return ptrAPI_ISteamUtils_IsSteamRunningOnSteamDeck(uintptr(s))
+	return s.IsRunningOnSteamHardware() == ESteamHardwareType_SteamDeck
 }
 
 func (s steamUtils) ShowFloatingGamepadTextInput(keyboardMode EFloatingGamepadTextInputMode, textFieldXPosition, textFieldYPosition, textFieldWidth, textFieldHeight int32) bool {
