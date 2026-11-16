@@ -196,6 +196,12 @@ const (
 type ISteamFriends interface {
 	GetPersonaName() string
 	SetRichPresence(string, string) bool
+	// ActivateGameOverlayInviteDialogConnectString opens the invite dialog
+	// of the Steam overlay. Each friend the player picks there gets an
+	// invite that carries connect, the same string a Join Game request
+	// gives (Rich Presence "connect"). It does nothing when the overlay is
+	// not there. Added for modwars-workspace issue #794.
+	ActivateGameOverlayInviteDialogConnectString(connect string)
 }
 
 const (
@@ -216,9 +222,10 @@ const (
 	flatAPI_ISteamApps_GetDLCCount            = "SteamAPI_ISteamApps_GetDLCCount"
 	flatAPI_ISteamApps_GetLaunchCommandLine   = "SteamAPI_ISteamApps_GetLaunchCommandLine"
 
-	flatAPI_SteamFriends                  = "SteamAPI_SteamFriends_v018"
-	flatAPI_ISteamFriends_GetPersonaName  = "SteamAPI_ISteamFriends_GetPersonaName"
-	flatAPI_ISteamFriends_SetRichPresence = "SteamAPI_ISteamFriends_SetRichPresence"
+	flatAPI_SteamFriends                                               = "SteamAPI_SteamFriends_v018"
+	flatAPI_ISteamFriends_GetPersonaName                               = "SteamAPI_ISteamFriends_GetPersonaName"
+	flatAPI_ISteamFriends_SetRichPresence                              = "SteamAPI_ISteamFriends_SetRichPresence"
+	flatAPI_ISteamFriends_ActivateGameOverlayInviteDialogConnectString = "SteamAPI_ISteamFriends_ActivateGameOverlayInviteDialogConnectString"
 
 	flatAPI_SteamInput                               = "SteamAPI_SteamInput_v007"
 	flatAPI_ISteamInput_GetConnectedControllers      = "SteamAPI_ISteamInput_GetConnectedControllers"

@@ -36,9 +36,10 @@ var (
 	ptrAPI_ISteamApps_GetLaunchCommandLine   func(uintptr, *byte, int32) int32
 
 	// ISteamFriends
-	ptrAPI_SteamFriends                  func() uintptr
-	ptrAPI_ISteamFriends_GetPersonaName  func(uintptr) string
-	ptrAPI_ISteamFriends_SetRichPresence func(uintptr, string, string) bool
+	ptrAPI_SteamFriends                                               func() uintptr
+	ptrAPI_ISteamFriends_GetPersonaName                               func(uintptr) string
+	ptrAPI_ISteamFriends_SetRichPresence                              func(uintptr, string, string) bool
+	ptrAPI_ISteamFriends_ActivateGameOverlayInviteDialogConnectString func(uintptr, string)
 
 	// ISteamInput
 	ptrAPI_SteamInput                               func() uintptr
@@ -101,6 +102,7 @@ func registerFunctions(lib uintptr) {
 	purego.RegisterLibFunc(&ptrAPI_SteamFriends, lib, flatAPI_SteamFriends)
 	purego.RegisterLibFunc(&ptrAPI_ISteamFriends_GetPersonaName, lib, flatAPI_ISteamFriends_GetPersonaName)
 	purego.RegisterLibFunc(&ptrAPI_ISteamFriends_SetRichPresence, lib, flatAPI_ISteamFriends_SetRichPresence)
+	purego.RegisterLibFunc(&ptrAPI_ISteamFriends_ActivateGameOverlayInviteDialogConnectString, lib, flatAPI_ISteamFriends_ActivateGameOverlayInviteDialogConnectString)
 
 	// ISteamInput
 	purego.RegisterLibFunc(&ptrAPI_SteamInput, lib, flatAPI_SteamInput)
@@ -294,6 +296,10 @@ func (s steamFriends) GetPersonaName() string {
 
 func (s steamFriends) SetRichPresence(key, value string) bool {
 	return ptrAPI_ISteamFriends_SetRichPresence(uintptr(s), key, value)
+}
+
+func (s steamFriends) ActivateGameOverlayInviteDialogConnectString(connect string) {
+	ptrAPI_ISteamFriends_ActivateGameOverlayInviteDialogConnectString(uintptr(s), connect)
 }
 
 func SteamInput() ISteamInput {
