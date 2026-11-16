@@ -58,6 +58,23 @@ type Callbacks struct {
 	// WebAPITickets are the GetTicketForWebApiResponse_t callbacks, in
 	// the order Steam gave them.
 	WebAPITickets []TicketForWebAPIResponse
+
+	// The Workshop (callresult.go): the results of its calls, in the order
+	// Steam gave them, and its two callbacks.
+	CreatedItems     []CallResult[CreateItemResult]
+	SubmittedUpdates []CallResult[SubmitItemUpdateResult]
+	Subscribed       []CallResult[SubscribeResult]
+	Unsubscribed     []CallResult[SubscribeResult]
+	QueriesCompleted []CallResult[QueryCompleted]
+	EULAStatuses     []CallResult[WorkshopEULAStatus]
+	// FailedCalls are calls of those kinds that Steam says failed, or whose
+	// result could not be read.
+	FailedCalls    []SteamAPICall_t
+	ItemsInstalled []ItemInstalled
+	ItemDownloads  []DownloadItemResult
+
+	// pipe is the pipe PollCallbacks reads, for the call results.
+	pipe HSteamPipe
 }
 
 // PollCallbacks pumps ManualDispatch's own dispatch frame once, drains
@@ -68,7 +85,7 @@ type Callbacks struct {
 func PollCallbacks(pipe HSteamPipe) Callbacks {
 	ManualDispatch_RunFrame(pipe)
 
-	var found Callbacks
+	found := Callbacks{pipe: pipe}
 	for {
 		var msg CallbackMsg
 		if !ManualDispatch_GetNextCallback(pipe, &msg) {
@@ -84,7 +101,7 @@ func PollCallbacks(pipe HSteamPipe) Callbacks {
 // payload is as large as that kind needs. msg.Param is Steam's memory: it
 // is valid only until the callback is freed, so take copies what it keeps.
 func (c *Callbacks) take(msg CallbackMsg) {
-	if msg.Param == nil {
+	if msg.Param == nil || c.takeWorkshop(msg) {
 		return
 	}
 	switch msg.CallbackID {

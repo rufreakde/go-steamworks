@@ -89,6 +89,9 @@ func registerFunctions(lib uintptr) {
 	purego.RegisterLibFunc(&ptrAPI_ManualDispatch_GetNextCallback, lib, flatAPI_ManualDispatch_GetNextCallback)
 	purego.RegisterLibFunc(&ptrAPI_ManualDispatch_FreeLastCallback, lib, flatAPI_ManualDispatch_FreeLastCallback)
 
+	// ISteamUGC and the call results (ugc.go)
+	registerUGC(lib)
+
 	// ISteamApps
 	purego.RegisterLibFunc(&ptrAPI_SteamApps, lib, flatAPI_SteamApps)
 	purego.RegisterLibFunc(&ptrAPI_ISteamApps_BGetDLCDataByIndex, lib, flatAPI_ISteamApps_BGetDLCDataByIndex)
