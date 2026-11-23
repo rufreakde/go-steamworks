@@ -22,6 +22,18 @@ type (
 	SteamAPICall_t    uint64
 )
 
+// EUGCQuery: the order of a query of all items. EUGCMatchingUGCType: the
+// kind of item it finds (issue #914).
+type (
+	EUGCQuery           int32
+	EUGCMatchingUGCType int32
+)
+
+const (
+	EUGCQueryRankedByPublicationDate EUGCQuery           = 1
+	EUGCMatchingUGCTypeItems         EUGCMatchingUGCType = 0
+)
+
 // The value of a handle or a call that Steam did not make.
 const (
 	UGCUpdateHandleInvalid UGCUpdateHandle_t = 0xffffffffffffffff
@@ -103,6 +115,15 @@ type ISteamUGC interface {
 	// SetItemTags replaces the item's tags with tags. Steam keeps every
 	// tag it saw once.
 	SetItemTags(update UGCUpdateHandle_t, tags []string) bool
+	// AddItemKeyValueTag and RemoveItemKeyValueTags: an item's key-value
+	// tags, which a query can ask for (QueryItemsByKeyValue). Added for
+	// modwars-workspace issue #914.
+	AddItemKeyValueTag(update UGCUpdateHandle_t, key, value string) bool
+	RemoveItemKeyValueTags(update UGCUpdateHandle_t, key string) bool
+	// QueryItemsByKeyValue asks for the items of appID that have the
+	// key-value tag, newest first, the first page; the result is a
+	// QueryCompleted, whose details GetQueryDetails reads.
+	QueryItemsByKeyValue(appID AppId_t, key, value string) SteamAPICall_t
 	// SubmitItemUpdate sends the change; its result is a SubmitItemUpdateResult.
 	SubmitItemUpdate(update UGCUpdateHandle_t, changeNote string) SteamAPICall_t
 	// GetItemUpdateProgress says how far a submitted change is.
@@ -143,6 +164,10 @@ var (
 	ptrAPI_ISteamUGC_SetItemPreview               func(uintptr, UGCUpdateHandle_t, string) bool
 	ptrAPI_ISteamUGC_SetItemTags                  func(uintptr, UGCUpdateHandle_t, *steamParamStringArray, bool) bool
 	ptrAPI_ISteamUGC_SubmitItemUpdate             func(uintptr, UGCUpdateHandle_t, string) SteamAPICall_t
+	ptrAPI_ISteamUGC_AddItemKeyValueTag           func(uintptr, UGCUpdateHandle_t, string, string) bool
+	ptrAPI_ISteamUGC_RemoveItemKeyValueTags       func(uintptr, UGCUpdateHandle_t, string) bool
+	ptrAPI_ISteamUGC_CreateQueryAllUGCRequestPage func(uintptr, EUGCQuery, EUGCMatchingUGCType, AppId_t, AppId_t, uint32) UGCQueryHandle_t
+	ptrAPI_ISteamUGC_AddRequiredKeyValueTag       func(uintptr, UGCQueryHandle_t, string, string) bool
 	ptrAPI_ISteamUGC_GetItemUpdateProgress        func(uintptr, UGCUpdateHandle_t, *uint64, *uint64) EItemUpdateStatus
 	ptrAPI_ISteamUGC_SubscribeItem                func(uintptr, PublishedFileId_t) SteamAPICall_t
 	ptrAPI_ISteamUGC_UnsubscribeItem              func(uintptr, PublishedFileId_t) SteamAPICall_t
@@ -175,6 +200,10 @@ func registerUGC(lib uintptr) {
 	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_SetItemPreview, lib, flatAPI_ISteamUGC_SetItemPreview)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_SetItemTags, lib, flatAPI_ISteamUGC_SetItemTags)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_SubmitItemUpdate, lib, flatAPI_ISteamUGC_SubmitItemUpdate)
+	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_AddItemKeyValueTag, lib, flatAPI_ISteamUGC_AddItemKeyValueTag)
+	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_RemoveItemKeyValueTags, lib, flatAPI_ISteamUGC_RemoveItemKeyValueTags)
+	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_CreateQueryAllUGCRequestPage, lib, flatAPI_ISteamUGC_CreateQueryAllUGCRequestPage)
+	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_AddRequiredKeyValueTag, lib, flatAPI_ISteamUGC_AddRequiredKeyValueTag)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_GetItemUpdateProgress, lib, flatAPI_ISteamUGC_GetItemUpdateProgress)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_SubscribeItem, lib, flatAPI_ISteamUGC_SubscribeItem)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_UnsubscribeItem, lib, flatAPI_ISteamUGC_UnsubscribeItem)
@@ -302,6 +331,30 @@ func (s steamUGC) GetItemDownloadInfo(item PublishedFileId_t) (uint64, uint64, b
 
 func (s steamUGC) DownloadItem(item PublishedFileId_t, highPriority bool) bool {
 	return ptrAPI_ISteamUGC_DownloadItem(uintptr(s), item, highPriority)
+}
+
+func (s steamUGC) AddItemKeyValueTag(update UGCUpdateHandle_t, key, value string) bool {
+	return ptrAPI_ISteamUGC_AddItemKeyValueTag(uintptr(s), update, key, value)
+}
+
+func (s steamUGC) RemoveItemKeyValueTags(update UGCUpdateHandle_t, key string) bool {
+	return ptrAPI_ISteamUGC_RemoveItemKeyValueTags(uintptr(s), update, key)
+}
+
+func (s steamUGC) QueryItemsByKeyValue(appID AppId_t, key, value string) SteamAPICall_t {
+	query := ptrAPI_ISteamUGC_CreateQueryAllUGCRequestPage(uintptr(s), EUGCQueryRankedByPublicationDate, EUGCMatchingUGCTypeItems, appID, appID, 1)
+	if query == UGCQueryHandleInvalid {
+		return SteamAPICallInvalid
+	}
+	if !ptrAPI_ISteamUGC_AddRequiredKeyValueTag(uintptr(s), query, key, value) {
+		ptrAPI_ISteamUGC_ReleaseQueryUGCRequest(uintptr(s), query)
+		return SteamAPICallInvalid
+	}
+	call := ptrAPI_ISteamUGC_SendQueryUGCRequest(uintptr(s), query)
+	if call == SteamAPICallInvalid {
+		ptrAPI_ISteamUGC_ReleaseQueryUGCRequest(uintptr(s), query)
+	}
+	return call
 }
 
 func (s steamUGC) RequestItemDetails(items []PublishedFileId_t) SteamAPICall_t {

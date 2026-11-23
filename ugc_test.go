@@ -278,3 +278,57 @@ func TestSteamUGC_SetItemTagsPassesEveryTagAsACString(t *testing.T) {
 		t.Errorf("no tags: %q", got)
 	}
 }
+
+// Issue #914: the key-value tags of an item, and a query for them.
+func TestSteamUGC_KeyValueTagsAndTheirQuery(t *testing.T) {
+	var tagged, removed, required []string
+	swap(t, &ptrAPI_ISteamUGC_AddItemKeyValueTag, func(self uintptr, h UGCUpdateHandle_t, key, value string) bool {
+		tagged = append(tagged, key+"="+value)
+		return h == 22
+	})
+	swap(t, &ptrAPI_ISteamUGC_RemoveItemKeyValueTags, func(self uintptr, h UGCUpdateHandle_t, key string) bool {
+		removed = append(removed, key)
+		return h == 22
+	})
+	if !ugc.RemoveItemKeyValueTags(22, "mod") || !ugc.AddItemKeyValueTag(22, "mod", "P-A#isle@map") || len(tagged) != 1 || tagged[0] != "mod=P-A#isle@map" || removed[0] != "mod" {
+		t.Errorf("tagged %q, removed %q", tagged, removed)
+	}
+
+	var created struct {
+		query    EUGCQuery
+		matching EUGCMatchingUGCType
+		creator  AppId_t
+		page     uint32
+	}
+	handle := UGCQueryHandle_t(57)
+	swap(t, &ptrAPI_ISteamUGC_CreateQueryAllUGCRequestPage, func(self uintptr, q EUGCQuery, m EUGCMatchingUGCType, creator, consumer AppId_t, page uint32) UGCQueryHandle_t {
+		created.query, created.matching, created.creator, created.page = q, m, creator, page
+		return handle
+	})
+	requiredOK := true
+	swap(t, &ptrAPI_ISteamUGC_AddRequiredKeyValueTag, func(self uintptr, h UGCQueryHandle_t, key, value string) bool {
+		required = append(required, key+"="+value)
+		return requiredOK
+	})
+	sent := SteamAPICall_t(9)
+	swap(t, &ptrAPI_ISteamUGC_SendQueryUGCRequest, func(self uintptr, h UGCQueryHandle_t) SteamAPICall_t { return sent })
+	released := 0
+	swap(t, &ptrAPI_ISteamUGC_ReleaseQueryUGCRequest, func(self uintptr, h UGCQueryHandle_t) bool { released++; return true })
+
+	if call := ugc.QueryItemsByKeyValue(480, "mod", "P-A#isle@map"); call != 9 || created.query != EUGCQueryRankedByPublicationDate ||
+		created.matching != EUGCMatchingUGCTypeItems || created.creator != 480 || created.page != 1 || required[0] != "mod=P-A#isle@map" || released != 0 {
+		t.Errorf("the query: call %d, %+v, %q, released %d", call, created, required, released)
+	}
+	sent = SteamAPICallInvalid
+	if ugc.QueryItemsByKeyValue(480, "mod", "x") != SteamAPICallInvalid || released != 1 {
+		t.Errorf("a send Steam did not take: released %d", released)
+	}
+	requiredOK = false
+	if ugc.QueryItemsByKeyValue(480, "mod", "x") != SteamAPICallInvalid || released != 2 {
+		t.Errorf("a tag Steam did not take: released %d", released)
+	}
+	handle = UGCQueryHandleInvalid
+	if ugc.QueryItemsByKeyValue(480, "mod", "x") != SteamAPICallInvalid {
+		t.Error("a query Steam did not make")
+	}
+}
