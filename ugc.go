@@ -3,7 +3,11 @@
 
 package steamworks
 
-import "github.com/ebitengine/purego"
+import (
+	"runtime"
+
+	"github.com/ebitengine/purego"
+)
 
 // This file binds ISteamUGC, the Steam Workshop: making and updating an
 // item, subscribing, the state and the folder of an installed item, the
@@ -96,6 +100,9 @@ type ISteamUGC interface {
 	// SetItemContent names the folder whose files become the item.
 	SetItemContent(update UGCUpdateHandle_t, folder string) bool
 	SetItemPreview(update UGCUpdateHandle_t, file string) bool
+	// SetItemTags replaces the item's tags with tags. Steam keeps every
+	// tag it saw once.
+	SetItemTags(update UGCUpdateHandle_t, tags []string) bool
 	// SubmitItemUpdate sends the change; its result is a SubmitItemUpdateResult.
 	SubmitItemUpdate(update UGCUpdateHandle_t, changeNote string) SteamAPICall_t
 	// GetItemUpdateProgress says how far a submitted change is.
@@ -134,6 +141,7 @@ var (
 	ptrAPI_ISteamUGC_SetItemVisibility            func(uintptr, UGCUpdateHandle_t, ERemoteStoragePublishedFileVisibility) bool
 	ptrAPI_ISteamUGC_SetItemContent               func(uintptr, UGCUpdateHandle_t, string) bool
 	ptrAPI_ISteamUGC_SetItemPreview               func(uintptr, UGCUpdateHandle_t, string) bool
+	ptrAPI_ISteamUGC_SetItemTags                  func(uintptr, UGCUpdateHandle_t, *steamParamStringArray, bool) bool
 	ptrAPI_ISteamUGC_SubmitItemUpdate             func(uintptr, UGCUpdateHandle_t, string) SteamAPICall_t
 	ptrAPI_ISteamUGC_GetItemUpdateProgress        func(uintptr, UGCUpdateHandle_t, *uint64, *uint64) EItemUpdateStatus
 	ptrAPI_ISteamUGC_SubscribeItem                func(uintptr, PublishedFileId_t) SteamAPICall_t
@@ -165,6 +173,7 @@ func registerUGC(lib uintptr) {
 	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_SetItemVisibility, lib, flatAPI_ISteamUGC_SetItemVisibility)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_SetItemContent, lib, flatAPI_ISteamUGC_SetItemContent)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_SetItemPreview, lib, flatAPI_ISteamUGC_SetItemPreview)
+	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_SetItemTags, lib, flatAPI_ISteamUGC_SetItemTags)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_SubmitItemUpdate, lib, flatAPI_ISteamUGC_SubmitItemUpdate)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_GetItemUpdateProgress, lib, flatAPI_ISteamUGC_GetItemUpdateProgress)
 	purego.RegisterLibFunc(&ptrAPI_ISteamUGC_SubscribeItem, lib, flatAPI_ISteamUGC_SubscribeItem)
@@ -215,6 +224,32 @@ func (s steamUGC) SetItemContent(update UGCUpdateHandle_t, folder string) bool {
 
 func (s steamUGC) SetItemPreview(update UGCUpdateHandle_t, file string) bool {
 	return ptrAPI_ISteamUGC_SetItemPreview(uintptr(s), update, file)
+}
+
+// steamParamStringArray is SteamParamStringArray_t: a pointer to the C
+// strings and their count. Steam reads the pointer at offset 0 and the
+// count at offset 8 under both packings (4 and 8); the struct goes by
+// pointer, so its size does not matter.
+type steamParamStringArray struct {
+	strings **byte
+	count   int32
+}
+
+func (s steamUGC) SetItemTags(update UGCUpdateHandle_t, tags []string) bool {
+	// Every C string and the pointer array live on the Go heap, pinned for
+	// the call: Steam copies the tags before it returns.
+	var pinner runtime.Pinner
+	defer pinner.Unpin()
+	pointers := make([]*byte, len(tags)+1) // one more, so &pointers[0] exists for no tags
+	for i, tag := range tags {
+		text := append([]byte(tag), 0)
+		pinner.Pin(&text[0])
+		pointers[i] = &text[0]
+	}
+	pinner.Pin(&pointers[0])
+	array := &steamParamStringArray{strings: &pointers[0], count: int32(len(tags))}
+	pinner.Pin(array)
+	return ptrAPI_ISteamUGC_SetItemTags(uintptr(s), update, array, false)
 }
 
 func (s steamUGC) SubmitItemUpdate(update UGCUpdateHandle_t, changeNote string) SteamAPICall_t {

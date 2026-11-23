@@ -250,3 +250,31 @@ func TestTheAppIDAndTheOverlayWebPage(t *testing.T) {
 		t.Errorf("opened %q in mode %d", opened, mode)
 	}
 }
+
+// SetItemTags hands Steam a SteamParamStringArray_t: the count, and a
+// pointer to that many C strings, each ending in a zero byte.
+func TestSteamUGC_SetItemTagsPassesEveryTagAsACString(t *testing.T) {
+	var got []string
+	var adminTags bool
+	swap(t, &ptrAPI_ISteamUGC_SetItemTags, func(self uintptr, h UGCUpdateHandle_t, array *steamParamStringArray, allowAdmin bool) bool {
+		adminTags = allowAdmin
+		for _, pointer := range unsafe.Slice(array.strings, array.count) {
+			var text []byte
+			for n := 0; *(*byte)(unsafe.Add(unsafe.Pointer(pointer), n)) != 0; n++ {
+				text = append(text, *(*byte)(unsafe.Add(unsafe.Pointer(pointer), n)))
+			}
+			got = append(got, string(text))
+		}
+		return self == uintptr(ugc) && h == 22
+	})
+	if !ugc.SetItemTags(22, []string{"Map", "2 Players", "Free for all"}) {
+		t.Error("SetItemTags said no")
+	}
+	if len(got) != 3 || got[0] != "Map" || got[1] != "2 Players" || got[2] != "Free for all" || adminTags {
+		t.Errorf("tags %q, admin %v", got, adminTags)
+	}
+	got = nil
+	if !ugc.SetItemTags(22, nil) || len(got) != 0 {
+		t.Errorf("no tags: %q", got)
+	}
+}

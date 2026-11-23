@@ -277,6 +277,7 @@ const (
 	flatAPI_ISteamUGC_SetItemVisibility            = "SteamAPI_ISteamUGC_SetItemVisibility"
 	flatAPI_ISteamUGC_SetItemContent               = "SteamAPI_ISteamUGC_SetItemContent"
 	flatAPI_ISteamUGC_SetItemPreview               = "SteamAPI_ISteamUGC_SetItemPreview"
+	flatAPI_ISteamUGC_SetItemTags                  = "SteamAPI_ISteamUGC_SetItemTags"
 	flatAPI_ISteamUGC_SubmitItemUpdate             = "SteamAPI_ISteamUGC_SubmitItemUpdate"
 	flatAPI_ISteamUGC_GetItemUpdateProgress        = "SteamAPI_ISteamUGC_GetItemUpdateProgress"
 	flatAPI_ISteamUGC_SubscribeItem                = "SteamAPI_ISteamUGC_SubscribeItem"
