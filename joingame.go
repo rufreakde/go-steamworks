@@ -20,6 +20,10 @@ import "unsafe"
 // GameRichPresenceJoinRequested_t.
 const gameRichPresenceJoinRequestedCallbackID = 337
 
+// gameOverlayActivatedCallbackID is the k_iCallback of GameOverlayActivated_t
+// (k_iSteamFriendsCallbacks + 31): the Steam overlay opened or closed.
+const gameOverlayActivatedCallbackID = 331
+
 // maxRichPresenceValueLength mirrors Valve's own
 // k_cchMaxRichPresenceValueLength: the fixed size of
 // GameRichPresenceJoinRequested_t.m_rgchConnect.

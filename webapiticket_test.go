@@ -129,3 +129,23 @@ func TestCallbacksTakeLeavesOutWhatItCannotRead(t *testing.T) {
 		t.Errorf("found = %+v, want nothing", found)
 	}
 }
+
+// Issue #785: GameOverlayActivated_t says whether the overlay is open.
+func TestCallbacks_OverlayActivated(t *testing.T) {
+	var found Callbacks
+	open := []byte{1, 1, 0, 0}
+	found.take(CallbackMsg{CallbackID: gameOverlayActivatedCallbackID, Param: unsafe.Pointer(&open[0]), ParamSize: int32(len(open))})
+	if found.OverlayActive == nil || !*found.OverlayActive {
+		t.Fatalf("open: %v", found.OverlayActive)
+	}
+	closed := []byte{0}
+	found.take(CallbackMsg{CallbackID: gameOverlayActivatedCallbackID, Param: unsafe.Pointer(&closed[0]), ParamSize: 1})
+	if *found.OverlayActive {
+		t.Error("closed")
+	}
+	var none Callbacks
+	none.take(CallbackMsg{CallbackID: gameOverlayActivatedCallbackID, Param: unsafe.Pointer(&closed[0]), ParamSize: 0})
+	if none.OverlayActive != nil {
+		t.Error("no payload")
+	}
+}

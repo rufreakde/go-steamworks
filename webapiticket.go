@@ -55,6 +55,10 @@ type Callbacks struct {
 	// JoinRequested is the most recent GameRichPresenceJoinRequested_t,
 	// nil when there was none.
 	JoinRequested *GameRichPresenceJoinRequested
+	// OverlayActive is the newest GameOverlayActivated_t: whether the
+	// Steam overlay is open now; nil when Steam said nothing this poll.
+	// Added for modwars-workspace issue #785.
+	OverlayActive *bool
 	// WebAPITickets are the GetTicketForWebApiResponse_t callbacks, in
 	// the order Steam gave them.
 	WebAPITickets []TicketForWebAPIResponse
@@ -105,6 +109,13 @@ func (c *Callbacks) take(msg CallbackMsg) {
 		return
 	}
 	switch msg.CallbackID {
+	case gameOverlayActivatedCallbackID:
+		// GameOverlayActivated_t: its first byte, m_bActive, is 1 while
+		// the overlay is open.
+		if msg.ParamSize >= 1 {
+			active := paramBytes(msg)[0] != 0
+			c.OverlayActive = &active
+		}
 	case gameRichPresenceJoinRequestedCallbackID:
 		if request, ok := decodeGameRichPresenceJoinRequested(msg.Param, int(msg.ParamSize)); ok {
 			c.JoinRequested = &request
